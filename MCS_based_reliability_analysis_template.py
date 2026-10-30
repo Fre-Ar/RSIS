@@ -22,13 +22,44 @@ def find_minimal_cut_sets(
         network: Directed network represented as a list of links. Each link is
             a ``(link_start, link_end)`` tuple indicating the direction of
             transmission.
-        link_start: Node from which frame transmission starts.
-        link_end: Node to which the frame must be transmitted.
+        source: Node from which frame transmission starts.
+        destination: Node to which the frame must be transmitted.
 
     Returns:
         A list containing all the minimal cut sets. Each MCS contains links whose simultaneous failure causes the top-event. The MCSs must be sorted by increasing cardinality.
     """
-    raise NotImplementedError
+    # fill adjacency list 
+    adjacency_list = {}
+    for edge in network:
+        start, end = edge
+        if start not in adjacency_list:
+            adjacency_list[start] = []
+        adjacency_list[start].append(end)
+    
+    # find all paths from source to destination using DFS
+    paths = []
+    def dfs(current_node, path):
+        if current_node == destination:
+            paths.append(path)
+            return
+        if current_node not in adjacency_list:
+            return
+        for neighbor in adjacency_list[current_node]:
+            if neighbor not in path:  # avoid cycles
+                dfs(neighbor, path + [neighbor])
+    dfs(source, [source])
+    
+    paths_edges = [[(path[i], path[i + 1]) for i in range(len(path) - 1)] for path in paths]
+    mcs_set = set()
+    def fill_mcs(current_edges, remaining_paths):
+        if not remaining_paths:
+            mcs_set.add(frozenset(current_edges))
+            return
+        for edge in remaining_paths[0]:
+            fill_mcs(current_edges + [edge], remaining_paths[1:])
+    
+
+    
 
 
 def derive_formula_for_top_event(
