@@ -1,3 +1,4 @@
+from collections import defaultdict
 from decimal import Decimal, getcontext
 from typing import TypeAlias
 
@@ -28,38 +29,76 @@ def find_minimal_cut_sets(
     Returns:
         A list containing all the minimal cut sets. Each MCS contains links whose simultaneous failure causes the top-event. The MCSs must be sorted by increasing cardinality.
     """
-    # fill adjacency list 
-    adjacency_list = {}
-    for edge in network:
-        start, end = edge
-        if start not in adjacency_list:
-            adjacency_list[start] = []
-        adjacency_list[start].append(end)
+    # 1. Fill adjacency list 
+    adjacency = defaultdict(list) # using defaultdict to avoid manual init of empty lists
+    for start, end in network:
+        adjacency[start].append(end)
     
-    # find all paths from source to destination using DFS
-    paths = []
-    def dfs(current_node, path):
-        if current_node == destination:
-            paths.append(path)
-            return
-        if current_node not in adjacency_list:
-            return
-        for neighbor in adjacency_list[current_node]:
-            if neighbor not in path:  # avoid cycles
-                dfs(neighbor, path + [neighbor])
-    dfs(source, [source])
+    # 2. Find all paths from source to destination using DFS
+    paths_edges = []
     
-    paths_edges = [[(path[i], path[i + 1]) for i in range(len(path) - 1)] for path in paths]
-    mcs_set = set()
-    def fill_mcs(current_edges, remaining_paths):
+    # keeping track of global variables to avoid passing copies of the path in recursive calls
+    visited = {source} # set of nodes currently in our path (for O(1) checks)
+    path_nodes = [source] # list of nodes used in the current path, used to create edges for the path
+    
+    def dfs(current):
+        # base case: when we reach the destination,
+        # we can add the path to our list of paths
+        if current == destination:
+            # zip pairs sequential nodes to create edges for the path
+            paths_edges.append(list(zip(path_nodes, path_nodes[1:])))
+            return
+        # exploring neighbors
+        for neighbor in adjacency[current]:
+            if neighbor not in visited:
+                # record the neighbor as part of our current route
+                visited.add(neighbor)
+                path_nodes.append(neighbor)
+                
+                # explore that route
+                dfs(neighbor)
+                
+                # backtrack (pop) for the next branch (loop iteration)
+                path_nodes.pop()
+                visited.remove(neighbor)
+    dfs(source)
+    
+    # 3. Find all minimal cut sets from the paths
+    mcs_list: list[MCS] = [] # list of MCSs found so far
+    current_set = set() # set of edges in the current cut set (for O(1) checks)
+    
+    def fill_mcs(remaining_paths):
+        # early pruning (if our set is a superset of a known MCS, we can stop)
+        for mcs in mcs_list:
+            if mcs.issubset(current_set):
+                return
+                
+        # base case: no remaining paths (we have found a valid cut set)
         if not remaining_paths:
-            mcs_set.add(frozenset(current_edges))
+            # remove any existing cut sets that are supersets of the current set
+            non_supersets = [mcs for mcs in mcs_list if not current_set.issubset(mcs)]
+            non_supersets.append(frozenset(current_set))
+            # replacing the list in place to avoid copying
+            mcs_list[:] = non_supersets
             return
-        for edge in remaining_paths[0]:
-            fill_mcs(current_edges + [edge], remaining_paths[1:])
-    
+            
+        # branching: try adding each of the first path's edges to the set
+        path_to_cut = remaining_paths[0]
+        for edge in path_to_cut:
+            current_set.add(edge)
+            # remove any remaining paths that are already cut by the current edge
+            next_remaining = [p for p in remaining_paths[1:] if edge not in p]
+            
+            # continue cutting the remaining paths recursively
+            fill_mcs(next_remaining)
+            
+            # backtrack to explore other edges in the path
+            current_set.remove(edge)
 
+    fill_mcs(paths_edges)
     
+    # sort by cardinality 
+    return sorted(mcs_list, key=len)
 
 
 def derive_formula_for_top_event(
