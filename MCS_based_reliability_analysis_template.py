@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from decimal import Decimal, getcontext
 from typing import TypeAlias
 
@@ -37,7 +37,8 @@ def find_minimal_cut_sets(
     # 2. Find all paths from source to destination using DFS
     paths_edges = []
     
-    # keeping track of global variables to avoid passing copies of the path in recursive calls
+    # keeping track of global variables
+    # to avoid passing copies of the path in recursive calls
     visited = {source} # set of nodes currently in our path (for O(1) checks)
     path_nodes = [source] # list of nodes used in the current path, used to create edges for the path
     
@@ -45,17 +46,17 @@ def find_minimal_cut_sets(
         # base case: when we reach the destination,
         # we can add the path to our list of paths
         if current == destination:
-            # zip pairs sequential nodes to create edges for the path
+            # `zip` pairs sequential nodes to create edges for the path
             paths_edges.append(list(zip(path_nodes, path_nodes[1:])))
             return
-        # exploring neighbors
+        # exploring unvisited neighbors
         for neighbor in adjacency[current]:
             if neighbor not in visited:
                 # record the neighbor as part of our current route
                 visited.add(neighbor)
                 path_nodes.append(neighbor)
                 
-                # explore that route
+                # recursively explore that route
                 dfs(neighbor)
                 
                 # backtrack (pop) for the next branch (loop iteration)
@@ -94,7 +95,6 @@ def find_minimal_cut_sets(
             
             # backtrack to explore other edges in the path
             current_set.remove(edge)
-
     fill_mcs(paths_edges)
     
     # sort by cardinality 
@@ -112,7 +112,19 @@ def derive_formula_for_top_event(
     Returns:
         A string representation of the approximated top-event probability.
     """
-    raise NotImplementedError
+    # collapse mcs_list into (cardinality, count) pairs 
+    # ex. [(2, 6), (3, 4)] means 6 MCSs of card 2 and 4 MCSs of card 3
+    card_cnt_pairs = list(Counter(len(mcs) for mcs in mcs_list).items())
+    
+    # format the formula (no need to show the factor when the count is 1 or the exponent when the cardinality is 1)
+    def format_term(card, cnt):
+        factor = f"{cnt}*" if cnt !=1 else ''
+        exponent = f"^{card}" if card != 1 else ''
+        return f"{factor}q{exponent}"
+        
+    top_event_formula = " + ".join(format_term(card, cnt) for card, cnt in card_cnt_pairs)
+    
+    return top_event_formula
 
 def compute_reliability_metrics(
     mcs_list: list[MCS],
@@ -131,7 +143,13 @@ def compute_reliability_metrics(
         A tuple containing the approximate top-event probability and the
         average time between packet losses in hours.
     """
-    raise NotImplementedError
+    # failure probability of a single link q
+    q = 1 - (1 - ber) ** PACKET_SIZE_BITS
+    # top event probability (failure rate)
+    top_event_prob = sum(q ** len(mcs) for mcs in mcs_list)
+    
+    avg_t_btw_packet_losses = (PACKET_PERIOD_IN_SECONDS / top_event_prob) / Decimal(3600)  
+    return top_event_prob, avg_t_btw_packet_losses
 
 
 
@@ -212,5 +230,12 @@ if __name__ == '__main__':
             print(f"BER: {ber}")
             print(f"Failure probability: {failure_probability}")
             print(f"Average time between packet losses: {average_time_between_packet_loss} hours")
-            
+       
+    # checking values for p show it is different from those shown on the slides 
+    #ber = Decimal("1e-10")
+    #p = (1 - ber) ** PACKET_SIZE_BITS    
+    #q = 1 - p
+    
+    #print(f"p: {p}")
+    #print(f"q: {q}")
             
