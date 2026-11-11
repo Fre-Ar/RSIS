@@ -64,6 +64,11 @@ def find_minimal_cut_sets(
                 visited.remove(neighbor)
     dfs(source)
     
+    # sort paths by length
+    # branching on shorter paths first creates a shallower recursion tree
+    # and finds smaller cut sets earlier
+    paths_edges.sort(key=len)
+    
     # 3. Find all minimal cut sets from the paths
     mcs_list: list[MCS] = [] # list of MCSs found so far
     current_set = set() # set of edges in the current cut set (for O(1) checks)
